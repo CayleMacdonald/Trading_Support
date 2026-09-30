@@ -36,6 +36,7 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
     </div>
   <div class="flex flex-wrap items-center gap-3 mt-2 text-xs">
       <input id="key" type="password" autocomplete="off" placeholder="Alpha Vantage key (needed for USD/JPY)" class="bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 w-64 text-zinc-200 placeholder-zinc-500">
+      <button id="refresh" class="chip" title="Fetch the latest data now">Refresh</button>
       <span id="status" class="text-zinc-400">Loading…</span>
     </div>
   </header>
@@ -46,9 +47,11 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
         <div class="flex gap-1.5" id="tfs" aria-label="Timeframe"></div>
         <div class="scroll-x flex gap-1.5 max-w-full" id="tools"></div>
       </div>
+      <div id="draw" class="flex flex-wrap items-center gap-1.5 px-4 pb-2"></div>
       <div class="relative flex-1 min-h-0">
         <div id="legend" class="absolute left-4 top-1 z-10 text-xs text-zinc-400 pointer-events-none"></div>
         <div id="main" class="absolute inset-0"></div>
+        <canvas id="ov" style="position:absolute;left:0;top:0;pointer-events:none;z-index:5"></canvas>
       </div>
       <div id="rsiWrap" class="hidden h-28 border-t border-zinc-800 relative">
         <div class="absolute left-4 top-1 z-10 text-xs text-zinc-400 pointer-events-none">RSI 14 <span id="rsiVal" class="text-zinc-200"></span></div>
@@ -58,6 +61,7 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
 
     <aside class="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800 p-4 lg:overflow-y-auto" style="background:var(--panel)">
       <div id="ai" class="pb-4 mb-4 border-b border-zinc-800"></div>
+      <div id="drawAI" class="hidden pb-4 mb-4 border-b border-zinc-800"></div>
       <h2 class="text-sm text-zinc-400">Trend insights</h2>
       <div class="mt-2 text-2xl font-semibold leading-tight" id="trend">–</div>
       <p class="mt-2 text-sm text-zinc-400 leading-relaxed" id="summary"></p>
@@ -168,8 +172,8 @@ async function fetchBars(pair,tf){
 async function load(keep){
   const my=++seq,st=$('status');
   try{const r=await fetchBars(state.pair,state.tf);if(my!==seq)return;
-    data=r.bars;st.textContent='Live · '+r.src+' · '+new Date(r.t).toLocaleTimeString();st.style.color='var(--up)'}
-  catch(e){if(my!==seq)return;data=gen(state.pair,state.tf);keep=false;
+    data=r.bars;st.style.color='var(--up)';const bn=r.src==='Binance';st.textContent=(bn?'Live · ':'Delayed · ')+r.src+' · '+new Date(r.t).toLocaleTimeString()+(bn?'':' · press Refresh for the latest');sync(bn);if(bn&&ws&&ws.readyState===1)live('● Streaming · Binance · real time','var(--up)')}
+  catch(e){if(my!==seq)return;data=gen(state.pair,state.tf);keep=false;unsub();
     st.textContent='Showing simulated data · '+e.message;st.style.color='var(--down)'}
   paint(keep);
 }
@@ -239,6 +243,69 @@ function runAIEngine(d,s2,s5,bb,rs){
    <h3 class="mt-4 text-sm text-zinc-400">Trade setup</h3><dl class="divide-y divide-zinc-800 text-sm">${setup}</dl>
    <p class="mt-2 text-xs text-zinc-500">Rule-based read of the chart data. Not financial advice.</p>`}
 
+
+/* ---------- real-time stream (Binance WebSocket) ---------- */
+let ws=null,subKey='',hi=0,pend=0;const WSH=['wss://stream.binance.com:9443','wss://data-stream.binance.vision'];
+const live=(t,c)=>{const s=$('status');s.textContent=t;s.style.color=c};
+function unsub(){subKey='';if(ws){ws.onclose=null;ws.close();ws=null}}
+function sync(on){if(!on){unsub();return}const k=state.pair+'|'+state.tf;if(k===subKey&&ws)return;unsub();subKey=k;wsOpen(k)}
+function wsOpen(k){
+  const w=new WebSocket(`${WSH[hi%2]}/ws/${BIN[state.pair].toLowerCase()}@kline_${BI[state.tf]}`);ws=w;
+  w.onopen=()=>live('● Streaming · Binance · real time','var(--up)');
+  w.onmessage=e=>{const x=JSON.parse(e.data).k;if(x)applyBar({time:Math.floor(x.t/1000),open:+x.o,high:+x.h,low:+x.l,close:+x.c})};
+  w.onclose=()=>{if(subKey!==k)return;hi++;live('Stream dropped, reconnecting… (Refresh loads the latest bars)','var(--down)');setTimeout(()=>{if(subKey===k)wsOpen(k)},2500)}}
+function applyBar(b){
+  const L=data[data.length-1];if(!L||b.time<L.time)return;
+  if(b.time===L.time)data[data.length-1]=b;else data.push(b);
+  candle.update(b);area.update({time:b.time,value:b.close});$('price').textContent=fmt(b.close);
+  if(!pend)pend=setTimeout(()=>{pend=0;paint(true)},1500)}
+
+/* ---------- drawing tools + analysis ---------- */
+const PAL=['#facc15','#38bdf8','#c084fc','#fb923c'],draws={},cv=$('ov'),cx=cv.getContext('2d');
+let tool=null,first=null,prev=null;const key=()=>state.pair+'|'+state.tf;
+const line=(a,b,c,d)=>{cx.beginPath();cx.moveTo(a,b);cx.lineTo(c,d);cx.stroke()},dot=(x,y)=>{cx.beginPath();cx.arc(x,y,3.5,0,6.283);cx.fill()};
+function drawBar(){
+  const B=(k,n)=>`<button class="chip ${tool===k?'on':''}" data-tool="${k}">${n}</button>`;
+  $('draw').innerHTML='<span class="text-xs text-zinc-500 mr-1">Draw</span>'+B('trend','Trend line')+B('hline','Horizontal line')+'<button class="chip" data-act="undo">Undo</button><button class="chip" data-act="clear">Clear</button>'
+    +(tool?`<span class="text-xs text-zinc-400 ml-2">${tool==='hline'?'Click the chart to place a level':first?'Click a second point':'Click a first point'} · Esc cancels</span>`:'');
+  $('main').style.cursor=tool?'crosshair':''}
+mainC.subscribeCrosshairMove(p=>{prev=p.point||null});
+mainC.subscribeClick(p=>{
+  if(!tool||!p.point)return;const se=activeSeries(),price=se.coordinateToPrice(p.point.y),time=p.time||mainC.timeScale().coordinateToTime(p.point.x);
+  if(price==null||!time)return;const pt={time,price:+price.toFixed(PAIRS[state.pair].d)},k=key();draws[k]=draws[k]||[];
+  if(tool==='hline'){draws[k].push({type:'hline',p1:pt,p2:pt});tool=null}
+  else if(!first)first=pt;else{if(pt.time===first.time)return;draws[k].push({type:'trend',p1:first,p2:pt});first=null;tool=null}
+  drawBar();analyzeDraws()});
+function overlay(){
+  const box=cv.parentNode,w=box.clientWidth,h=box.clientHeight,dp=window.devicePixelRatio||1;
+  if(cv.width!==Math.round(w*dp)||cv.height!==Math.round(h*dp)){cv.width=Math.round(w*dp);cv.height=Math.round(h*dp);cv.style.width=w+'px';cv.style.height=h+'px'}
+  cx.setTransform(dp,0,0,dp,0,0);cx.clearRect(0,0,w,h);
+  const L=draws[key()]||[];if(!L.length&&!first)return;
+  const ts=mainC.timeScale(),se=activeSeries(),pw=ts.width();
+  cx.save();cx.beginPath();cx.rect(0,0,pw,h-28);cx.clip();cx.lineWidth=1.5;cx.font='11px Figtree, sans-serif';
+  L.forEach((d,i)=>{const c=PAL[i%4],y1=se.priceToCoordinate(d.p1.price);cx.strokeStyle=c;cx.fillStyle=c;if(y1==null)return;
+    if(d.type==='hline'){cx.setLineDash([6,4]);line(0,y1,pw,y1);cx.setLineDash([]);cx.fillText('L'+(i+1)+' '+fmt(d.p1.price),8,y1-5);return}
+    const x1=ts.timeToCoordinate(d.p1.time),x2=ts.timeToCoordinate(d.p2.time),y2=se.priceToCoordinate(d.p2.price);
+    if(x1==null||x2==null||y2==null||x1===x2)return;
+    const ex=Math.max(pw,x2),ey=y2+(y2-y1)*(ex-x2)/(x2-x1);line(x1,y1,ex,ey);dot(x1,y1);dot(x2,y2);cx.fillText('L'+(i+1),x1+6,y1-6)});
+  if(first&&prev){const x=ts.timeToCoordinate(first.time),y=se.priceToCoordinate(first.price);
+    if(x!=null&&y!=null){cx.strokeStyle=cx.fillStyle='#e4e4e7';cx.setLineDash([4,4]);line(x,y,prev.x,prev.y);cx.setLineDash([]);dot(x,y)}}
+  cx.restore()}
+function analyzeDraws(){
+  const L=draws[key()]||[],el=$('drawAI');el.classList.toggle('hidden',!L.length);if(!L.length||data.length<20)return;
+  const last=data[data.length-1],px=last.close,step=TFS[state.tf][0],tol=avg(data.slice(-14).map(b=>b.high-b.low))*.3;
+  el.innerHTML='<h2 class="text-sm text-zinc-400">Drawing analysis</h2><div class="divide-y divide-zinc-800 text-sm">'+L.map((d,i)=>{
+    let at=()=>d.p1.price,name='Horizontal level',slope='';
+    if(d.type==='trend'){const s=(d.p2.price-d.p1.price)/(d.p2.time-d.p1.time);at=t=>d.p1.price+s*(t-d.p1.time);
+      name=s>0?'Rising trend line':s<0?'Falling trend line':'Flat trend line';
+      slope=` · slope ${(s*step/at(last.time)*100).toFixed(3)}% per bar · 10 bars ahead ${fmt(at(last.time+10*step))}`}
+    const v=at(last.time),pct=(px-v)/v*100,t0=d.type==='trend'?Math.min(d.p1.time,d.p2.time):0;
+    let touches=0,was=false,cross=0,ps=null;
+    data.forEach(b=>{if(b.time<t0)return;const l=at(b.time),hit=b.low<=l+tol&&b.high>=l-tol;if(hit&&!was)touches++;was=hit;const sd=b.close>l;if(ps!==null&&sd!==ps)cross++;ps=sd});
+    const pb=data[data.length-4],now=px>v,before=pb.close>at(pb.time);
+    const st=before!==now?(now?'Fresh breakout above the line':'Fresh breakdown below the line'):now?'Holding above, acting as support':'Trading below, acting as resistance';
+    return `<div class="py-2"><div class="flex justify-between"><span class="font-medium" style="color:${PAL[i%4]}">L${i+1} · ${name}</span><span class="font-medium">${fmt(v)}</span></div><div class="mt-1 text-xs text-zinc-400 leading-relaxed">${st}. Price is ${pct>=0?'+':''}${pct.toFixed(2)}% from the line · ${touches} touch${touches===1?'':'es'} · ${cross} cross${cross===1?'':'es'}${slope}</div></div>`}).join('')+'</div>'}
+
 /* ---------- render ---------- */
 function paint(keep){
   const P=PAIRS[state.pair],pf={type:'price',precision:P.d,minMove:1/10**P.d};
@@ -264,7 +331,7 @@ function paint(keep){
   $('pairName').textContent=state.pair;$('price').textContent=fmt(last.close);
   const el=$('chg');el.className='text-sm font-medium '+(upT?'up':'down');
   el.textContent=`${upT?'+':''}${(last.close-first.open).toFixed(P.d)} (${upT?'+':''}${chg.toFixed(2)}%) · ${TFS[state.tf][2]}`;
-  lv=sr(data);drawSR();insights(data,s2,s5,bb,rs,chg);runAIEngine(data,s2,s5,bb,rs);
+  lv=sr(data);drawSR();insights(data,s2,s5,bb,rs,chg);runAIEngine(data,s2,s5,bb,rs);analyzeDraws();
   drawControls();
 }
 
@@ -289,7 +356,7 @@ function insights(d,s2,s5,bb,rs,chg){
 }
 
 /* ---------- controls ---------- */
-function drawControls(){
+function drawControls(){drawBar();
   $('pairSel').value=state.pair;
   $('tfs').innerHTML=Object.keys(TFS).map(t=>`<button class="chip ${t===state.tf?'on':''}" data-tf="${t}">${t}</button>`).join('');
   $('tools').innerHTML=TOOLS.map(t=>{
@@ -300,13 +367,16 @@ function drawControls(){
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;const d=b.dataset;
-  if(d.pair)state.pair=d.pair;else if(d.tf)state.tf=d.tf;else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else return;
+  if(d.pair)state.pair=d.pair;else if(d.tf)state.tf=d.tf;else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else if(d.tool){tool=tool===d.tool?null:d.tool;first=null;drawBar();return}else if(d.act){if(d.act==='undo')(draws[key()]||[]).pop();else draws[key()]=[];analyzeDraws();return}else return;
   load();
 });
 $('pairSel').innerHTML=Object.keys(PAIRS).map(p=>`<option value="${p}">${p}</option>`).join('');
 $('pairSel').addEventListener('change',e=>{state.pair=e.target.value;load()});
 try{$('key').value=localStorage.getItem('avkey')||''}catch(e){}
 $('key').addEventListener('change',()=>{try{localStorage.setItem('avkey',$('key').value.trim())}catch(e){}cache.clear();load()});
-load();setInterval(()=>load(true),30000);
+$('refresh').addEventListener('click',()=>{cache.clear();load(true)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){tool=null;first=null;drawBar()}});
+requestAnimationFrame(function f(){overlay();requestAnimationFrame(f)});
+load();
 </script>
 </body></html>
