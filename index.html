@@ -22,11 +22,20 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
 .up{color:var(--up)}.down{color:var(--down)}
 .scroll-x{overflow-x:auto;scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
 #main.cr,#main.cr *{cursor:crosshair!important}#main.mv,#main.mv *{cursor:move!important}
+html.mobile body{max-width:480px;margin:0 auto;border-left:1px solid #18181b;border-right:1px solid #18181b}
+html.mobile #mainRow{flex-direction:column!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+html.mobile #chartSec{height:62dvh!important;flex:none!important}
+html.mobile #side{width:100%!important;border-left:0!important;border-top:1px solid #27272a;overflow:visible!important;padding-bottom:calc(1.5rem + env(safe-area-inset-bottom,0px))}
+html.mobile .chip{min-height:38px;padding:.4rem .9rem;font-size:.9rem}
+html.mobile #tools,html.mobile #tfs,html.mobile #draw{flex-wrap:nowrap!important;overflow-x:auto;scrollbar-width:none;max-width:100%}
+html.mobile #pairSel,html.mobile input,html.mobile select{font-size:16px!important;min-height:40px}
+html.mobile #legend{font-size:10px;max-width:92%}
+html.mobile #price{font-size:1.9rem}
 </style></head>
 <body>
 <div class="flex flex-col h-full">
   <header class="px-4 pt-3 pb-2 border-b border-zinc-800">
-    <div class="flex items-center gap-2 mb-2"><svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#111114" stroke="#27272a" stroke-width="2"/><circle cx="32" cy="32" r="24" fill="none" stroke="#3f3f46" stroke-width="2"/><g stroke-width="2.4" stroke-linecap="round"><path d="M18 34V52" stroke="#ff2d55"/><path d="M32 26V46" stroke="#00ff85"/><path d="M46 14V38" stroke="#00ff85"/></g><rect x="14" y="40" width="8" height="8" rx="1.5" fill="#ff2d55"/><rect x="28" y="30" width="8" height="12" rx="1.5" fill="#00ff85"/><rect x="42" y="18" width="8" height="14" rx="1.5" fill="#00ff85"/></svg><span class="text-base font-bold tracking-tight">FX<span style="color:var(--up)"> Lens</span></span><span class="text-xs text-zinc-500">Forex tracker</span></div>
+    <div class="flex items-center gap-2 mb-2"><svg viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect x="2" y="2" width="60" height="60" rx="14" fill="#111114" stroke="#27272a" stroke-width="2"/><circle cx="32" cy="32" r="24" fill="none" stroke="#3f3f46" stroke-width="2"/><g stroke-width="2.4" stroke-linecap="round"><path d="M18 34V52" stroke="#ff2d55"/><path d="M32 26V46" stroke="#00ff85"/><path d="M46 14V38" stroke="#00ff85"/></g><rect x="14" y="40" width="8" height="8" rx="1.5" fill="#ff2d55"/><rect x="28" y="30" width="8" height="12" rx="1.5" fill="#00ff85"/><rect x="42" y="18" width="8" height="14" rx="1.5" fill="#00ff85"/></svg><span class="text-base font-bold tracking-tight">FX<span style="color:var(--up)"> Lens</span></span><span class="text-xs text-zinc-500">Forex tracker</span><button id="modeBtn" class="chip ml-auto" aria-label="Switch between mobile and desktop layout">Mobile view</button></div>
     <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
       <div>
         <div class="text-sm text-zinc-400" id="pairName">EUR/USD</div>
@@ -44,13 +53,13 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
     </div>
   </header>
 
-  <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-visible">
-    <section class="h-[64dvh] lg:h-auto lg:flex-1 shrink-0 lg:shrink flex flex-col min-w-0 min-h-0">
+  <div id="mainRow" class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-visible">
+    <section id="chartSec" class="h-[64dvh] lg:h-auto lg:flex-1 shrink-0 lg:shrink flex flex-col min-w-0 min-h-0">
       <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
         <div class="flex gap-1.5" id="tfs" aria-label="Timeframe"></div>
         <div class="scroll-x flex gap-1.5 max-w-full" id="tools"></div>
       </div>
-      <div id="draw" class="flex flex-wrap items-center gap-1.5 px-4 pb-2"></div>
+      <div class="flex flex-wrap items-center gap-1.5 px-4 pb-2"><div id="draw" class="flex flex-wrap items-center gap-1.5"></div><button id="delSel" data-act="delsel" class="chip hidden">Delete selected</button></div>
       <div class="relative flex-1 min-h-0">
         <div id="legend" class="absolute left-4 top-1 z-10 text-xs text-zinc-400 pointer-events-none"></div>
         <div id="main" class="absolute inset-0"></div>
@@ -62,7 +71,7 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
       </div>
     </section>
 
-    <aside class="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800 p-4 lg:overflow-y-auto" style="background:var(--panel)">
+    <aside id="side" class="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800 p-4 lg:overflow-y-auto" style="background:var(--panel)">
       <div id="ai" class="pb-4 mb-4 border-b border-zinc-800"></div>
       <div id="drawAI" class="hidden pb-4 mb-4 border-b border-zinc-800"></div>
       <h2 class="text-sm text-zinc-400">Trend insights</h2>
@@ -295,6 +304,7 @@ function overlay(){
     if(x!=null&&y!=null){cx.strokeStyle=cx.fillStyle='#e4e4e7';cx.setLineDash([4,4]);line(x,y,prev.x,prev.y);cx.setLineDash([]);dot(x,y)}}
   cx.restore()}
 function analyzeDraws(){
+  if($('delSel'))$('delSel').classList.toggle('hidden',sel==null);box.style.touchAction=sel!=null?'none':'';
   const L=draws[key()]||[],el=$('drawAI');el.classList.toggle('hidden',!L.length);if(!L.length||data.length<20)return;
   if(document.activeElement&&document.activeElement.tagName==='INPUT'&&el.contains(document.activeElement))return;
   const last=data[data.length-1],px=last.close,step=TFS[state.tf][0],tol=avg(data.slice(-14).map(b=>b.high-b.low))*.3;
@@ -325,11 +335,11 @@ function geo(d){
 function hit(x,y){
   const L=draws[key()]||[];
   for(let i=L.length-1;i>=0;i--){const g=geo(L[i]);if(!g||x>g.pw)continue;
-    if(g.h){if(Math.abs(y-g.y)<=6)return{i,part:'body'};continue}
-    if(Math.hypot(x-g.x1,y-g.y1)<=9)return{i,part:'p1'};
-    if(Math.hypot(x-g.x2,y-g.y2)<=9)return{i,part:'p2'};
+    if(g.h){if(Math.abs(y-g.y)<=(mob?18:6))return{i,part:'body'};continue}
+    if(Math.hypot(x-g.x1,y-g.y1)<=(mob?20:9))return{i,part:'p1'};
+    if(Math.hypot(x-g.x2,y-g.y2)<=(mob?20:9))return{i,part:'p2'};
     const dx=g.ex-g.x1,dy=g.ey-g.y1,t=Math.max(0,Math.min(1,((x-g.x1)*dx+(y-g.y1)*dy)/(dx*dx+dy*dy)));
-    if(Math.hypot(x-(g.x1+t*dx),y-(g.y1+t*dy))<=6)return{i,part:'body'}}
+    if(Math.hypot(x-(g.x1+t*dx),y-(g.y1+t*dy))<=(mob?18:6))return{i,part:'body'}}
   return null}
 box.addEventListener('pointerdown',e=>{
   if(tool||e.button)return;const[x,y]=ptr(e),h=hit(x,y);
@@ -415,7 +425,7 @@ function drawControls(){drawBar();
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;const d=b.dataset;
-  if(d.pair)state.pair=d.pair;else if(d.tf){state.tf=d.tf;sel=null}else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else if(d.tool){tool=tool===d.tool?null:d.tool;first=null;drawBar();return}else if(d.act){if(d.act==='undo')(draws[key()]||[]).pop();else if(d.act==='clearall'){if(Object.values(draws).some(l=>l.length)&&!confirm('Remove all drawings on every pair and timeframe, and reset the chart view?'))return;for(const k in draws)delete draws[k];tool=null;first=null;sel=null;drag=null;drawBar();mainC.priceScale('right').applyOptions({autoScale:true});mainC.timeScale().fitContent()}else draws[key()]=[];analyzeDraws();return}else if(d.del!==undefined){(draws[key()]||[]).splice(+d.del,1);sel=null;analyzeDraws();return}else if(d.selx!==undefined){sel=+d.selx;analyzeDraws();return}else return;
+  if(d.pair)state.pair=d.pair;else if(d.tf){state.tf=d.tf;sel=null}else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else if(d.tool){tool=tool===d.tool?null:d.tool;first=null;drawBar();return}else if(d.act){if(d.act==='undo')(draws[key()]||[]).pop();else if(d.act==='delsel'){const L=draws[key()]||[];if(L[sel])L.splice(sel,1);sel=null}else if(d.act==='clearall'){if(Object.values(draws).some(l=>l.length)&&!confirm('Remove all drawings on every pair and timeframe, and reset the chart view?'))return;for(const k in draws)delete draws[k];tool=null;first=null;sel=null;drag=null;drawBar();mainC.priceScale('right').applyOptions({autoScale:true});mainC.timeScale().fitContent()}else draws[key()]=[];analyzeDraws();return}else if(d.del!==undefined){(draws[key()]||[]).splice(+d.del,1);sel=null;analyzeDraws();return}else if(d.selx!==undefined){sel=+d.selx;analyzeDraws();return}else return;
   load();
 });
 $('pairSel').innerHTML=Object.keys(PAIRS).map(p=>`<option value="${p}">${p}</option>`).join('');
@@ -425,6 +435,14 @@ $('key').addEventListener('change',()=>{try{localStorage.setItem('avkey',$('key'
 $('refresh').addEventListener('click',()=>{cache.clear();load(true)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){tool=null;first=null;sel=null;drawBar();analyzeDraws()}if((e.key==='Delete'||e.key==='Backspace')&&sel!=null&&!/INPUT/.test(document.activeElement.tagName)){const L=draws[key()]||[];if(L[sel]){L.splice(sel,1);sel=null;analyzeDraws();e.preventDefault()}}});
 requestAnimationFrame(function f(){overlay();requestAnimationFrame(f)});
+let mob=false;
+function setMobile(on,save){
+  mob=on;document.documentElement.classList.toggle('mobile',on);$('modeBtn').textContent=on?'Desktop view':'Mobile view';
+  const o={handleScroll:{vertTouchDrag:!on},rightPriceScale:{minimumWidth:on?58:78}};mainC.applyOptions(o);rsiC.applyOptions(o);
+  if(save){try{localStorage.setItem('fxmode',on?'m':'d')}catch(e){}}
+  requestAnimationFrame(()=>mainC.timeScale().fitContent())}
+$('modeBtn').addEventListener('click',()=>setMobile(!mob,true));
+{let s=null;try{s=localStorage.getItem('fxmode')}catch(e){}setMobile(s?s==='m':matchMedia('(max-width:767px)').matches,false)}
 load();
 </script>
 </body></html>
