@@ -20,6 +20,7 @@ body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-u
 .pill.on i{opacity:1}
 .up{color:var(--up)}.down{color:var(--down)}
 .scroll-x{overflow-x:auto;scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
+#main.cr,#main.cr *{cursor:crosshair!important}#main.mv,#main.mv *{cursor:move!important}
 </style></head>
 <body>
 <div class="flex flex-col h-full">
@@ -263,12 +264,12 @@ function applyBar(b){
 /* ---------- drawing tools + analysis ---------- */
 const PAL=['#facc15','#38bdf8','#c084fc','#fb923c'],draws={},cv=$('ov'),cx=cv.getContext('2d');
 let tool=null,first=null,prev=null;const key=()=>state.pair+'|'+state.tf;
-const line=(a,b,c,d)=>{cx.beginPath();cx.moveTo(a,b);cx.lineTo(c,d);cx.stroke()},dot=(x,y)=>{cx.beginPath();cx.arc(x,y,3.5,0,6.283);cx.fill()};
+const line=(a,b,c,d)=>{cx.beginPath();cx.moveTo(a,b);cx.lineTo(c,d);cx.stroke()},dot=(x,y,r=3.5)=>{cx.beginPath();cx.arc(x,y,r,0,6.283);cx.fill()};
 function drawBar(){
   const B=(k,n)=>`<button class="chip ${tool===k?'on':''}" data-tool="${k}">${n}</button>`;
-  $('draw').innerHTML='<span class="text-xs text-zinc-500 mr-1">Draw</span>'+B('trend','Trend line')+B('hline','Horizontal line')+'<button class="chip" data-act="undo">Undo</button><button class="chip" data-act="clear">Clear</button>'
+  $('draw').innerHTML='<span class="text-xs text-zinc-500 mr-1">Draw</span>'+B('trend','Trend line')+B('hline','Horizontal line')+'<button class="chip" data-act="undo">Undo</button><button class="chip" data-act="clear" title="Remove the lines on this pair and timeframe">Clear</button><button class="chip" data-act="clearall" title="Remove every drawing on every pair and timeframe, and reset zoom and scroll">Clear all</button>'
     +(tool?`<span class="text-xs text-zinc-400 ml-2">${tool==='hline'?'Click the chart to place a level':first?'Click a second point':'Click a first point'} · Esc cancels</span>`:'');
-  $('main').style.cursor=tool?'crosshair':''}
+  $('main').classList.toggle('cr',!!tool)}
 mainC.subscribeCrosshairMove(p=>{prev=p.point||null});
 mainC.subscribeClick(p=>{
   if(!tool||!p.point)return;const se=activeSeries(),price=se.coordinateToPrice(p.point.y),time=p.time||mainC.timeScale().coordinateToTime(p.point.x);
@@ -283,16 +284,17 @@ function overlay(){
   const L=draws[key()]||[];if(!L.length&&!first)return;
   const ts=mainC.timeScale(),se=activeSeries(),pw=ts.width();
   cx.save();cx.beginPath();cx.rect(0,0,pw,h-28);cx.clip();cx.lineWidth=1.5;cx.font='11px Figtree, sans-serif';
-  L.forEach((d,i)=>{const c=PAL[i%4],y1=se.priceToCoordinate(d.p1.price);cx.strokeStyle=c;cx.fillStyle=c;if(y1==null)return;
+  L.forEach((d,i)=>{const c=PAL[i%4],y1=se.priceToCoordinate(d.p1.price);cx.strokeStyle=c;cx.fillStyle=c;cx.lineWidth=i===sel?3:1.5;if(y1==null)return;
     if(d.type==='hline'){cx.setLineDash([6,4]);line(0,y1,pw,y1);cx.setLineDash([]);cx.fillText('L'+(i+1)+' '+fmt(d.p1.price),8,y1-5);return}
     const x1=ts.timeToCoordinate(d.p1.time),x2=ts.timeToCoordinate(d.p2.time),y2=se.priceToCoordinate(d.p2.price);
     if(x1==null||x2==null||y2==null||x1===x2)return;
-    const ex=Math.max(pw,x2),ey=y2+(y2-y1)*(ex-x2)/(x2-x1);line(x1,y1,ex,ey);dot(x1,y1);dot(x2,y2);cx.fillText('L'+(i+1),x1+6,y1-6)});
+    const ex=Math.max(pw,x2),ey=y2+(y2-y1)*(ex-x2)/(x2-x1);line(x1,y1,ex,ey);dot(x1,y1,i===sel?6:3.5);dot(x2,y2,i===sel?6:3.5);cx.fillText('L'+(i+1),x1+6,y1-6)});
   if(first&&prev){const x=ts.timeToCoordinate(first.time),y=se.priceToCoordinate(first.price);
     if(x!=null&&y!=null){cx.strokeStyle=cx.fillStyle='#e4e4e7';cx.setLineDash([4,4]);line(x,y,prev.x,prev.y);cx.setLineDash([]);dot(x,y)}}
   cx.restore()}
 function analyzeDraws(){
   const L=draws[key()]||[],el=$('drawAI');el.classList.toggle('hidden',!L.length);if(!L.length||data.length<20)return;
+  if(document.activeElement&&document.activeElement.tagName==='INPUT'&&el.contains(document.activeElement))return;
   const last=data[data.length-1],px=last.close,step=TFS[state.tf][0],tol=avg(data.slice(-14).map(b=>b.high-b.low))*.3;
   el.innerHTML='<h2 class="text-sm text-zinc-400">Drawing analysis</h2><div class="divide-y divide-zinc-800 text-sm">'+L.map((d,i)=>{
     let at=()=>d.p1.price,name='Horizontal level',slope='';
@@ -304,7 +306,51 @@ function analyzeDraws(){
     data.forEach(b=>{if(b.time<t0)return;const l=at(b.time),hit=b.low<=l+tol&&b.high>=l-tol;if(hit&&!was)touches++;was=hit;const sd=b.close>l;if(ps!==null&&sd!==ps)cross++;ps=sd});
     const pb=data[data.length-4],now=px>v,before=pb.close>at(pb.time);
     const st=before!==now?(now?'Fresh breakout above the line':'Fresh breakdown below the line'):now?'Holding above, acting as support':'Trading below, acting as resistance';
-    return `<div class="py-2"><div class="flex justify-between"><span class="font-medium" style="color:${PAL[i%4]}">L${i+1} · ${name}</span><span class="font-medium">${fmt(v)}</span></div><div class="mt-1 text-xs text-zinc-400 leading-relaxed">${st}. Price is ${pct>=0?'+':''}${pct.toFixed(2)}% from the line · ${touches} touch${touches===1?'':'es'} · ${cross} cross${cross===1?'':'es'}${slope}</div></div>`}).join('')+'</div>'}
+    return `<div class="py-2 ${i===sel?'bg-zinc-900 -mx-2 px-2 rounded':''}"><div class="flex items-center justify-between gap-2"><button data-selx="${i}" class="font-medium text-left" style="color:${PAL[i%4]}">L${i+1} · ${name}</button>${d.type==='hline'?`<input data-price="${i}" value="${d.p1.price}" inputmode="decimal" aria-label="Level price" class="w-24 bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-right text-xs">`:`<span class="font-medium">${fmt(v)}</span>`}<button data-del="${i}" class="chip" style="padding:.1rem .6rem">Delete</button></div><div class="mt-1 text-xs text-zinc-400 leading-relaxed">${st}. Price is ${pct>=0?'+':''}${pct.toFixed(2)}% from the line · ${touches} touch${touches===1?'':'es'} · ${cross} cross${cross===1?'':'es'}${slope}</div></div>`}).join('')+'</div>'}
+
+
+/* ---------- select / drag / delete drawings ---------- */
+let sel=null,drag=null;
+const box=cv.parentNode,ptr=e=>{const r=box.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+const idxOf=t=>{let bi=0,bd=1e18;data.forEach((b,i)=>{const d=Math.abs(b.time-t);if(d<bd){bd=d;bi=i}});return bi};
+const atX=x=>{const g=mainC.timeScale().coordinateToLogical(x),n=data.length;return g==null?n-1:Math.max(0,Math.min(n-1,Math.round(g)))};
+function geo(d){
+  const ts=mainC.timeScale(),se=activeSeries(),pw=ts.width(),y1=se.priceToCoordinate(d.p1.price);if(y1==null)return null;
+  if(d.type==='hline')return{h:1,y:y1,pw};
+  const x1=ts.timeToCoordinate(d.p1.time),x2=ts.timeToCoordinate(d.p2.time),y2=se.priceToCoordinate(d.p2.price);
+  if(x1==null||x2==null||y2==null||x1===x2)return null;
+  const ex=Math.max(pw,x2);return{x1,y1,x2,y2,pw,ex,ey:y2+(y2-y1)*(ex-x2)/(x2-x1)}}
+function hit(x,y){
+  const L=draws[key()]||[];
+  for(let i=L.length-1;i>=0;i--){const g=geo(L[i]);if(!g||x>g.pw)continue;
+    if(g.h){if(Math.abs(y-g.y)<=6)return{i,part:'body'};continue}
+    if(Math.hypot(x-g.x1,y-g.y1)<=9)return{i,part:'p1'};
+    if(Math.hypot(x-g.x2,y-g.y2)<=9)return{i,part:'p2'};
+    const dx=g.ex-g.x1,dy=g.ey-g.y1,t=Math.max(0,Math.min(1,((x-g.x1)*dx+(y-g.y1)*dy)/(dx*dx+dy*dy)));
+    if(Math.hypot(x-(g.x1+t*dx),y-(g.y1+t*dy))<=6)return{i,part:'body'}}
+  return null}
+box.addEventListener('pointerdown',e=>{
+  if(tool||e.button)return;const[x,y]=ptr(e),h=hit(x,y);
+  if(!h){if(sel!=null){sel=null;analyzeDraws()}return}
+  e.stopPropagation();e.preventDefault();sel=h.i;const d=draws[key()][h.i];
+  drag={i:h.i,part:h.part,i0:atX(x),o:JSON.parse(JSON.stringify(d)),n1:idxOf(d.p1.time),n2:idxOf(d.p2.time),pr0:activeSeries().coordinateToPrice(y)};
+  analyzeDraws()},true);
+window.addEventListener('pointermove',e=>{
+  const[x,y]=ptr(e);
+  if(!drag){if(tool||!box.contains(e.target)){$('main').classList.remove('mv');return}$('main').classList.toggle('mv',!!hit(x,y));return}
+  const d=(draws[key()]||[])[drag.i];if(!d)return;
+  const pr=activeSeries().coordinateToPrice(y);if(pr==null)return;
+  const dp=PAIRS[state.pair].d,rd=v=>+v.toFixed(dp),o=drag.o,dP=pr-drag.pr0,di=atX(x)-drag.i0,T=i=>data[Math.max(0,Math.min(data.length-1,i))].time;
+  if(o.type==='hline')d.p1.price=d.p2.price=rd(o.p1.price+dP);
+  else if(drag.part==='p1')d.p1={time:T(atX(x)),price:rd(pr)};
+  else if(drag.part==='p2')d.p2={time:T(atX(x)),price:rd(pr)};
+  else{d.p1={time:T(drag.n1+di),price:rd(o.p1.price+dP)};d.p2={time:T(drag.n2+di),price:rd(o.p2.price+dP)}}
+  if(d.type==='trend'&&d.p1.time===d.p2.time){d.p1=o.p1;d.p2=o.p2}
+  analyzeDraws()});
+window.addEventListener('pointerup',()=>{drag=null});
+document.addEventListener('change',e=>{
+  const i=e.target.dataset&&e.target.dataset.price;if(i==null)return;
+  const d=(draws[key()]||[])[+i],v=parseFloat(e.target.value);if(d&&isFinite(v))d.p1.price=d.p2.price=v;e.target.blur();analyzeDraws()});
 
 /* ---------- render ---------- */
 function paint(keep){
@@ -367,15 +413,15 @@ function drawControls(){drawBar();
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;const d=b.dataset;
-  if(d.pair)state.pair=d.pair;else if(d.tf)state.tf=d.tf;else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else if(d.tool){tool=tool===d.tool?null:d.tool;first=null;drawBar();return}else if(d.act){if(d.act==='undo')(draws[key()]||[]).pop();else draws[key()]=[];analyzeDraws();return}else return;
+  if(d.pair)state.pair=d.pair;else if(d.tf){state.tf=d.tf;sel=null}else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else if(d.tool){tool=tool===d.tool?null:d.tool;first=null;drawBar();return}else if(d.act){if(d.act==='undo')(draws[key()]||[]).pop();else if(d.act==='clearall'){if(Object.values(draws).some(l=>l.length)&&!confirm('Remove all drawings on every pair and timeframe, and reset the chart view?'))return;for(const k in draws)delete draws[k];tool=null;first=null;sel=null;drag=null;drawBar();mainC.priceScale('right').applyOptions({autoScale:true});mainC.timeScale().fitContent()}else draws[key()]=[];analyzeDraws();return}else if(d.del!==undefined){(draws[key()]||[]).splice(+d.del,1);sel=null;analyzeDraws();return}else if(d.selx!==undefined){sel=+d.selx;analyzeDraws();return}else return;
   load();
 });
 $('pairSel').innerHTML=Object.keys(PAIRS).map(p=>`<option value="${p}">${p}</option>`).join('');
-$('pairSel').addEventListener('change',e=>{state.pair=e.target.value;load()});
+$('pairSel').addEventListener('change',e=>{state.pair=e.target.value;sel=null;load()});
 try{$('key').value=localStorage.getItem('avkey')||''}catch(e){}
 $('key').addEventListener('change',()=>{try{localStorage.setItem('avkey',$('key').value.trim())}catch(e){}cache.clear();load()});
 $('refresh').addEventListener('click',()=>{cache.clear();load(true)});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){tool=null;first=null;drawBar()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){tool=null;first=null;sel=null;drawBar();analyzeDraws()}if((e.key==='Delete'||e.key==='Backspace')&&sel!=null&&!/INPUT/.test(document.activeElement.tagName)){const L=draws[key()]||[];if(L[sel]){L.splice(sel,1);sel=null;analyzeDraws();e.preventDefault()}}});
 requestAnimationFrame(function f(){overlay();requestAnimationFrame(f)});
 load();
 </script>
