@@ -1,160 +1,312 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Quantum-Pulse Live AI Pro Terminal</title>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-    <style>
-        :root {
-            --up: #00ff85;
-            --down: #ff2d55;
-            --bg: #09090b;
-            --panel: #111114;
-            --line: #27272a;
-            --mut: #a1a1aa;
-            box-sizing: border-box;
-            padding-top: env(safe-area-inset-top, 0px);
-            padding-bottom: env(safe-area-inset-bottom, 0px);
-        }
-        html, body { height: 100%; background: var(--bg); color: #e4e4e7; font-family: Figtree, system-ui, sans-serif; font-variant-numeric: tabular-nums; overflow: hidden; }
-        .chip { padding: .3rem .8rem; border-radius: 999px; border: 1px solid var(--line); font-size: .82rem; font-weight: 500; color: var(--mut); cursor: pointer; white-space: nowrap; background: transparent; transition: background .15s, color .15s; }
-        .chip:hover { color: #fff; border-color: #3f3f46; }
-        .chip.on { background: #fafafa; color: #09090b; border-color: #fafafa; }
-        .up { color: var(--up); }
-        .down { color: var(--down); }
-    </style>
-</head>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Forex tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{--up:#00ff85;--down:#ff2d55;--bg:#09090b;--panel:#111114;--line:#27272a;--mut:#a1a1aa;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;background:var(--bg);color:#e4e4e7;font-family:Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.chip{padding:.3rem .8rem;border-radius:999px;border:1px solid var(--line);font-size:.82rem;font-weight:500;color:var(--mut);cursor:pointer;white-space:nowrap;background:transparent;transition:background .15s,color .15s}
+.chip:hover{color:#fff;border-color:#3f3f46}
+.chip:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.chip.on{background:#fafafa;color:#09090b;border-color:#fafafa}
+.pill{display:inline-flex;align-items:center;gap:.45rem}
+.pill i{width:.55rem;height:.55rem;border-radius:50%;background:var(--c);opacity:.35}
+.pill.on{color:#fff;border-color:var(--c);background:#18181b}
+.pill.on i{opacity:1}
+.up{color:var(--up)}.down{color:var(--down)}
+.scroll-x{overflow-x:auto;scrollbar-width:none}.scroll-x::-webkit-scrollbar{display:none}
+</style></head>
 <body>
 <div class="flex flex-col h-full">
-    <!-- Main Application Header Workspace -->
-    <header class="px-6 py-4 border-b border-zinc-800 bg-zinc-900/30 backdrop-blur-md flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-4">
-            <div id="connectionStatus" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-300"></div>
-            <div>
-                <div class="text-xs font-mono uppercase tracking-widest text-zinc-500" id="pairName">BTC/USD (Live Feed)</div>
-                <div class="flex items-baseline gap-3 mt-0.5">
-                    <span class="text-3xl font-bold tracking-tight font-mono text-zinc-100" id="price">--.--</span>
-                    <span class="text-xs font-bold font-mono px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-700/30" id="chg">--</span>
-                </div>
-            </div>
+  <header class="px-4 pt-3 pb-2 border-b border-zinc-800">
+    <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+      <div>
+        <div class="text-sm text-zinc-400" id="pairName">EUR/USD</div>
+        <div class="flex items-baseline gap-3">
+          <span class="text-3xl font-semibold tracking-tight" id="price">–</span>
+          <span class="text-sm font-medium" id="chg">–</span>
         </div>
-        
-        <!-- Interactive Controls Matrix -->
-        <div class="flex items-center gap-3">
-            <select id="pairSel" aria-label="Currency pair" class="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm font-medium text-zinc-100 focus:outline-none focus:border-emerald-500/50 transition cursor-pointer" style="color-scheme:dark">
-                <option value="BTCUSDT">BTC/USD (Bitcoin Spot)</option>
-                <option value="XAUUSDT">XAU/USD (Gold Spot)</option>
-                <option value="ETHUSDT">ETH/USD (Ethereum Spot)</option>
-            </select>
-            
-            <button id="refreshFeed" class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700/80 text-zinc-200 hover:text-white px-3 py-2 rounded-lg border border-zinc-700/60 text-xs font-semibold transition active:scale-95 cursor-pointer">
-                <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-                Sync Live Feed
-            </button>
-        </div>
-    </header>
-
-    <!-- Content Split Area -->
-    <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
-        <!-- Interactive Chart Node Interface -->
-        <section class="flex-1 flex flex-col min-w-0 min-h-0 relative border-b lg:border-b-0 border-zinc-800">
-            <div class="flex flex-wrap items-center justify-between gap-2 px-6 py-2 border-b border-zinc-900 bg-zinc-950/40 text-xs">
-                <div class="flex gap-2 font-mono text-zinc-400">
-                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> 9 EMA</span>
-                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> 21 SMA</span>
-                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-400"></span> Bollinger Bands</span>
-                </div>
-                <div class="text-[10px] uppercase font-mono tracking-wider text-zinc-500">Active Timeframe: 1M Live Pipeline</div>
-            </div>
-            <div class="relative flex-1 min-h-0">
-                <div id="main" class="absolute inset-0"></div>
-            </div>
-            <!-- Technical Relative Strength Index Component Panel -->
-            <div id="rsiWrap" class="h-32 border-t border-zinc-800 relative bg-zinc-950/20">
-                <div class="absolute left-6 top-2 z-10 text-[10px] font-mono uppercase tracking-widest text-zinc-500 pointer-events-none">Momentum Oscillator <span id="rsiVal" class="text-zinc-200 ml-1.5 font-bold">--</span></div>
-                <div id="rsi" class="absolute inset-0"></div>
-            </div>
-        </section>
-
-        <!-- Dynamic AI Risk Workspace Sidebar -->
-        <aside class="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800 p-5 overflow-y-auto flex flex-col gap-5" style="background:var(--panel)">
-            <!-- System Confluence Signal Engine Display -->
-            <div class="border border-zinc-800/80 bg-zinc-950/60 p-4 rounded-xl">
-                <h3 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5">
-                    <span>🤖</span> AI Market Confluence
-                </h3>
-                <div id="aiVerdict" class="text-xs font-black inline-block px-2.5 py-1 rounded-md mb-3 bg-zinc-800 text-zinc-400 border border-zinc-700/40 tracking-wider font-mono">
-                    INITIALISING TELEMETRY...
-                </div>
-                <p class="text-xs text-zinc-400 leading-relaxed font-normal" id="summary">
-                    Synthesizing live data ticks to compute exponential moving indicators and map relative volatility parameters...
-                </p>
-            </div>
-
-            <!-- Quantitative Risk Management Allocation Blueprint -->
-            <div class="border border-zinc-800/80 bg-zinc-950/60 p-4 rounded-xl flex flex-col gap-2">
-                <h2 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">🎯 Risk Targets</h2>
-                <div class="flex justify-between items-center py-1.5 border-b border-zinc-800/40">
-                    <span class="text-xs text-zinc-400">Trigger Entry</span>
-                    <span id="statEntry" class="font-mono text-xs font-bold text-zinc-300">--</span>
-                </div>
-                <div class="flex justify-between items-center py-1.5 border-b border-zinc-800/40">
-                    <span class="text-xs text-zinc-400 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Take Profit (TP)</span>
-                    <span id="statTp" class="font-mono text-xs font-bold text-emerald-400">--</span>
-                </div>
-                <div class="flex justify-between items-center py-1.5">
-                    <span class="text-xs text-zinc-400 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Stop Loss (SL)</span>
-                    <span id="statSl" class="font-mono text-xs font-bold text-rose-400">--</span>
-                </div>
-            </div>
-            
-            <div class="mt-auto border border-zinc-800/40 bg-zinc-900/10 p-3 rounded-lg">
-                <p class="text-[10px] text-zinc-500 leading-normal font-mono">Data Pipeline: Live Binance WebSockets Engine streaming directly in-browser. Standard deviation bands recalculate in real-time. Continuous risk updates applied.</p>
-            </div>
-        </aside>
+      </div>
+      <select id="pairSel" aria-label="Currency pair" class="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm font-medium text-zinc-100" style="color-scheme:dark"></select>
     </div>
+  <div class="flex flex-wrap items-center gap-3 mt-2 text-xs">
+      <input id="key" type="password" autocomplete="off" placeholder="Alpha Vantage key (needed for USD/JPY)" class="bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 w-64 text-zinc-200 placeholder-zinc-500">
+      <span id="status" class="text-zinc-400">Loading…</span>
+    </div>
+  </header>
+
+  <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-visible">
+    <section class="h-[64dvh] lg:h-auto lg:flex-1 shrink-0 lg:shrink flex flex-col min-w-0 min-h-0">
+      <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+        <div class="flex gap-1.5" id="tfs" aria-label="Timeframe"></div>
+        <div class="scroll-x flex gap-1.5 max-w-full" id="tools"></div>
+      </div>
+      <div class="relative flex-1 min-h-0">
+        <div id="legend" class="absolute left-4 top-1 z-10 text-xs text-zinc-400 pointer-events-none"></div>
+        <div id="main" class="absolute inset-0"></div>
+      </div>
+      <div id="rsiWrap" class="hidden h-28 border-t border-zinc-800 relative">
+        <div class="absolute left-4 top-1 z-10 text-xs text-zinc-400 pointer-events-none">RSI 14 <span id="rsiVal" class="text-zinc-200"></span></div>
+        <div id="rsi" class="absolute inset-0"></div>
+      </div>
+    </section>
+
+    <aside class="lg:w-[22rem] shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-800 p-4 lg:overflow-y-auto" style="background:var(--panel)">
+      <div id="ai" class="pb-4 mb-4 border-b border-zinc-800"></div>
+      <h2 class="text-sm text-zinc-400">Trend insights</h2>
+      <div class="mt-2 text-2xl font-semibold leading-tight" id="trend">–</div>
+      <p class="mt-2 text-sm text-zinc-400 leading-relaxed" id="summary"></p>
+      <dl class="mt-4 divide-y divide-zinc-800 text-sm" id="stats"></dl>
+      <p class="mt-4 text-xs text-zinc-500">EUR/USD, GBP/USD and gold come from Binance (stablecoin-quoted, close to spot). USD/JPY comes from Alpha Vantage. Not financial advice.</p>
+    </aside>
+  </div>
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-let socket = null;
-let mainChart = null;
-let rsiChart = null;
-let candleSeries = null;
+if(!window.LightweightCharts){document.body.insertAdjacentHTML('afterbegin','<p style="padding:1rem;color:#ff2d55">The charting library failed to load. Check your connection and reload.</p>');throw new Error('lightweight-charts missing')}
+const PAIRS={'EUR/USD':{base:1.0862,d:5,vol:.005,seed:11},'USD/JPY':{base:149.35,d:3,vol:.006,seed:23},'GBP/USD':{base:1.2946,d:5,vol:.0055,seed:37},'XAU/USD':{base:2648.4,d:2,vol:.01,seed:51}};
+const TFS={'1D':[900,96,'1 day'],'1W':[3600,168,'1 week'],'1M':[14400,180,'1 month'],'3M':[86400,90,'3 months'],'1Y':[86400,365,'1 year']};
+const state={pair:'EUR/USD',tf:'1M',type:'candle',ind:{sma20:1,sma50:1,bb:0,sr:1,rsi:1}};
+const TOOLS=[['candle','Candles'],['line','Line'],'|',['sma20','SMA 20','#facc15'],['sma50','SMA 50','#38bdf8'],['bb','Bollinger bands','#c084fc'],['sr','Support & resistance','#94a3b8'],['rsi','RSI','#fb923c']];
 
-// Indicator Pipeline Reference Elements
-let ema9Line = null, sma21Line = null;
-let bbUpperLine = null, bbLowerLine = null;
-let rsiLine = null;
+/* ---------- mock data ---------- */
+const rng=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const gauss=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(6.2832*r());
+function gen(pair,tf){
+  const P=PAIRS[pair],[step,n]=TFS[tf],r=rng(P.seed*1000+n+step%97),sv=P.vol*Math.sqrt(step/86400),ph=r()*6.28,bias=(r()-.5)*sv*.24;
+  const now=Math.floor(Date.now()/1000/step)*step,raw=[];let p=1;
+  for(let i=0;i<n;i++){const o=p,c=o*(1+Math.sin(i/n*9+ph)*sv*.25+bias+gauss(r)*sv),w=Math.abs(gauss(r))*sv*.5;
+    raw.push({time:now-(n-1-i)*step,open:o,high:Math.max(o,c)*(1+w),low:Math.min(o,c)*(1-w),close:c});p=c}
+  const k=P.base/p,f=v=>+(v*k).toFixed(P.d);
+  return raw.map(b=>({time:b.time,open:f(b.open),high:f(b.high),low:f(b.low),close:f(b.close)}));
+}
 
-// Technical Target Line Objects
-let entryLine = null, tpLine = null, slLine = null;
-let historyData = [];
+/* ---------- indicators ---------- */
+const avg=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const smaOf=(d,n)=>d.map((b,i)=>i<n-1?{time:b.time}:{time:b.time,value:avg(d.slice(i-n+1,i+1).map(x=>x.close))});
+function bollinger(d,n=20,k=2){const u=[],m=[],l=[];d.forEach((b,i)=>{if(i<n-1){[u,m,l].forEach(a=>a.push({time:b.time}));return}
+  const w=d.slice(i-n+1,i+1).map(x=>x.close),mu=avg(w),sd=Math.sqrt(avg(w.map(x=>(x-mu)**2)));
+  u.push({time:b.time,value:mu+k*sd});m.push({time:b.time,value:mu});l.push({time:b.time,value:mu-k*sd})});return{u,m,l}}
+function rsiOf(d,n=14){const out=d.map(b=>({time:b.time}));let g=0,l=0;
+  for(let i=1;i<d.length;i++){const ch=d[i].close-d[i-1].close,up=Math.max(ch,0),dn=Math.max(-ch,0);
+    if(i<=n){g+=up/n;l+=dn/n}else{g=(g*(n-1)+up)/n;l=(l*(n-1)+dn)/n}
+    if(i>=n)out[i].value=l===0?100:100-100/(1+g/l)}return out}
 
-function initTerminal() {
-    const mainNode = $('main');
-    const rsiNode = $('rsi');
+/* ---------- charts ---------- */
+const L=LightweightCharts;
+const base={layout:{background:{type:'solid',color:'transparent'},textColor:'#a1a1aa',fontFamily:'Figtree, system-ui, sans-serif',fontSize:12},
+  grid:{vertLines:{color:'#16161a'},horzLines:{color:'#1c1c21'}},autoSize:true,
+  crosshair:{mode:0,vertLine:{color:'#71717a',style:3,labelBackgroundColor:'#3f3f46'},horzLine:{color:'#71717a',style:3,labelBackgroundColor:'#3f3f46'}},
+  rightPriceScale:{borderColor:'#27272a',minimumWidth:78},timeScale:{borderColor:'#27272a',rightOffset:4}};
+const mainC=L.createChart($('main'),base);
+const rsiC=L.createChart($('rsi'),{...base,timeScale:{...base.timeScale,visible:false},rightPriceScale:{...base.rightPriceScale,scaleMargins:{top:.15,bottom:.15}}});
+const candle=mainC.addCandlestickSeries({upColor:'#00ff85',downColor:'#ff2d55',wickUpColor:'#00ff85',wickDownColor:'#ff2d55',borderVisible:false});
+const area=mainC.addAreaSeries({lineWidth:2,priceLineVisible:true});
+const ln=(c,w=1.5)=>mainC.addLineSeries({color:c,lineWidth:w,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+const s20=ln('#facc15'),s50=ln('#38bdf8'),bbU=ln('#c084fc',1),bbM=ln('#c084fc55',1),bbL=ln('#c084fc',1);
+const rsiS=rsiC.addLineSeries({color:'#fb923c',lineWidth:2,priceLineVisible:false,priceFormat:{type:'price',precision:1,minMove:.1}});
+[70,30].forEach(v=>rsiS.createPriceLine({price:v,color:'#52525b',lineStyle:2,lineWidth:1,axisLabelVisible:true,title:''}));
 
-    const chartConfig = {
-        layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#71717a', fontFamily: 'Figtree, sans-serif', fontSize: 11 },
-        grid: { vertLines: { color: '#16161a' }, horzLines: { color: '#16161a' } },
-        crosshair: { mode: 0, vertLine: { color: '#3f3f46', style: 3 }, horzLine: { color: '#3f3f46', style: 3 } },
-        rightPriceScale: { borderColor: '#27272a', alignLabels: true },
-        timeScale: { borderColor: '#27272a', timeVisible: true, secondsVisible: false }
-    };
+let syncing=false,xs=false,data=[],closeMap=new Map(),rsiMap=new Map(),ind={};
+const link=(a,b)=>a.timeScale().subscribeVisibleLogicalRangeChange(r=>{if(syncing||!r)return;syncing=true;b.timeScale().setVisibleLogicalRange(r);syncing=false});
+link(mainC,rsiC);link(rsiC,mainC);
 
-    mainChart = LightweightCharts.createChart(mainNode, chartConfig);
-    rsiChart = LightweightCharts.createChart(rsiNode, {
-        ...chartConfig,
-        timeScale: { ...chartConfig.timeScale, visible: false },
-        rightPriceScale: { ...chartConfig.rightPriceScale, scaleMargins: { top: 0.15, bottom: 0.15 } }
-    });
+function activeSeries(){return state.type==='candle'?candle:area}
+const fmt=v=>v==null?'–':v.toFixed(PAIRS[state.pair].d);
 
-    candleSeries = mainChart.addCandlestickSeries({ upColor: '#00ff85', downColor: '#ff2d55', wickUpColor: '#00ff85', wickDownColor: '#ff2d55', borderVisible: false });
-    
-    // Core Overlays Initialization
+function setLegend(bar,t){
+  if(!bar)return;const o=bar.open!=null?bar:{open:bar.close,high:bar.close,low:bar.close,close:bar.close};
+  const c=o.close>=o.open?'up':'down';
+  let h=`<span class="${c}">O ${fmt(o.open)} &nbsp;H ${fmt(o.high)} &nbsp;L ${fmt(o.low)} &nbsp;C ${fmt(o.close)}</span>`;
+  const g=(m)=>m.get(t);
+  if(state.ind.sma20)h+=` &nbsp;<span style="color:#facc15">SMA 20 ${fmt(g(ind.m20))}</span>`;
+  if(state.ind.sma50)h+=` &nbsp;<span style="color:#38bdf8">SMA 50 ${fmt(g(ind.m50))}</span>`;
+  $('legend').innerHTML=h;
+}
+mainC.subscribeCrosshairMove(p=>{
+  const b=p.time?data.find(x=>x.time===p.time):data[data.length-1];setLegend(b,p.time||b.time);
+  if(xs||!state.ind.rsi)return;xs=true;
+  const v=p.time&&rsiMap.get(p.time);v!=null?rsiC.setCrosshairPosition(v,p.time,rsiS):rsiC.clearCrosshairPosition();
+  $('rsiVal').textContent=v!=null?v.toFixed(1):'';xs=false});
+rsiC.subscribeCrosshairMove(p=>{
+  if(xs)return;xs=true;
+  const v=p.time&&closeMap.get(p.time);v!=null?mainC.setCrosshairPosition(v,p.time,activeSeries()):mainC.clearCrosshairPosition();
+  $('rsiVal').textContent=p.time&&rsiMap.get(p.time)!=null?rsiMap.get(p.time).toFixed(1):'';xs=false});
+
+/* ---------- live data ---------- */
+const BIN={'EUR/USD':'EURUSDT','GBP/USD':'GBPUSDT','XAU/USD':'PAXGUSDT'};
+const BI={'1D':'15m','1W':'1h','1M':'4h','3M':'1d','1Y':'1d'};
+const AVI={'1D':'15min','1W':'60min'},AVN={'1D':96,'1W':168,'1M':60,'3M':90,'1Y':365};
+const cache=new Map();let seq=0;
+async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+async function binance(pair,tf){
+  const q=`/api/v3/klines?symbol=${BIN[pair]}&interval=${BI[tf]}&limit=${TFS[tf][1]}`;let j;
+  try{j=await getJSON('https://data-api.binance.vision'+q)}catch(e){j=await getJSON('https://api.binance.com'+q)}
+  return j.map(k=>({time:Math.floor(k[0]/1000),open:+k[1],high:+k[2],low:+k[3],close:+k[4]}));
+}
+async function alpha(pair,tf,key){
+  const [f,t]=pair.split('/'),iv=AVI[tf];
+  const j=await getJSON(`https://www.alphavantage.co/query?function=${iv?'FX_INTRADAY':'FX_DAILY'}&from_symbol=${f}&to_symbol=${t}${iv?'&interval='+iv:''}&outputsize=full&apikey=${encodeURIComponent(key)}`);
+  const k=Object.keys(j).find(x=>x.startsWith('Time Series'));
+  if(!k)throw new Error(j.Note||j.Information||j['Error Message']||'No data returned');
+  return Object.entries(j[k]).map(([d,v])=>({time:Date.parse(d.replace(' ','T')+'Z')/1000,open:+v['1. open'],high:+v['2. high'],low:+v['3. low'],close:+v['4. close']})).sort((a,b)=>a.time-b.time).slice(-AVN[tf]);
+}
+async function fetchBars(pair,tf){
+  const key=$('key').value.trim(),bin=!!BIN[pair],id=[pair,tf,bin].join('|'),c=cache.get(id);
+  if(c&&Date.now()-c.t<(bin?15000:300000))return c;
+  if(!bin&&!key)throw new Error(pair+' needs a free Alpha Vantage key. Paste it above.');
+  const bars=bin?await binance(pair,tf):await alpha(pair,tf,key);
+  if(bars.length<50)throw new Error('Not enough bars returned');
+  const r={bars,src:bin?'Binance':'Alpha Vantage',t:Date.now()};cache.set(id,r);return r;
+}
+async function load(keep){
+  const my=++seq,st=$('status');
+  try{const r=await fetchBars(state.pair,state.tf);if(my!==seq)return;
+    data=r.bars;st.textContent='Live · '+r.src+' · '+new Date(r.t).toLocaleTimeString();st.style.color='var(--up)'}
+  catch(e){if(my!==seq)return;data=gen(state.pair,state.tf);keep=false;
+    st.textContent='Showing simulated data · '+e.message;st.style.color='var(--down)'}
+  paint(keep);
+}
+
+
+/* ---------- support/resistance + AI analyst ---------- */
+let lv={R:[0],S:[0]},srl=[];
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+function sr(d){
+  const k=4,px=d[d.length-1].close,tol=avg(d.slice(-14).map(b=>b.high-b.low))*.8,pv=[];
+  for(let i=k;i<d.length-k;i++){const w=d.slice(i-k,i+k+1);
+    if(d[i].high>=Math.max(...w.map(b=>b.high)))pv.push(d[i].high);
+    if(d[i].low<=Math.min(...w.map(b=>b.low)))pv.push(d[i].low)}
+  pv.sort((a,b)=>a-b);const cl=[];
+  pv.forEach(v=>{const c=cl[cl.length-1];if(c&&v-c.max<=tol){c.max=v;c.n++;c.sum+=v}else cl.push({sum:v,n:1,max:v})});
+  const cs=cl.map(c=>c.sum/c.n),R=cs.filter(p=>p>px*1.0005).sort((a,b)=>a-b).slice(0,2),S=cs.filter(p=>p<px*.9995).sort((a,b)=>b-a).slice(0,2);
+  if(!R.length)R.push(Math.max(...d.map(b=>b.high)));
+  if(!S.length)S.push(Math.min(...d.map(b=>b.low)));
+  return{R,S}}
+function drawSR(){
+  srl.forEach(([s,l])=>s.removePriceLine(l));srl=[];if(!state.ind.sr)return;
+  const add=(v,c,t)=>[candle,area].forEach(s=>srl.push([s,s.createPriceLine({price:v,color:c,lineWidth:1,lineStyle:2,axisLabelVisible:true,title:t})]));
+  lv.R.forEach((v,i)=>add(v,'#ff2d55','R'+(i+1)));lv.S.forEach((v,i)=>add(v,'#00ff85','S'+(i+1)))}
+const emaOf=(d,n)=>{const k=2/(n+1);let e=0;return d.map((b,i)=>{e=i?b.close*k+e*(1-k):b.close;return i<n-1?{time:b.time}:{time:b.time,value:e}})};
+function runAIEngine(d,s2,s5,bb,rs){
+  const N=d.length,px=d[N-1].close,v20=s2.at(-1).value,v50=s5.at(-1).value,slope=v50-s5.at(-11).value,r=rs.at(-1).value;
+  const e9=emaOf(d,9),m21=smaOf(d,21),W=5;
+  // most recent 9 EMA / 21 SMA cross inside the last W bars (bars ago, -1 = none)
+  let bull=-1,bear=-1;
+  for(let i=N-1;i>=Math.max(21,N-W);i--){const a=e9[i].value,b=m21[i].value,pa=e9[i-1].value,pb=m21[i-1].value;
+    if(bull<0&&pa<=pb&&a>b)bull=N-1-i;if(bear<0&&pa>=pb&&a<b)bear=N-1-i}
+  // Bollinger band touch on the last two bars
+  let lowB=false,upB=false;
+  for(let i=N-2;i<N;i++){if(d[i].low<=bb.l[i].value)lowB=true;if(d[i].high>=bb.u[i].value)upB=true}
+  const lowTrig=lowB&&r<45,upTrig=upB&&r>55,buyTrig=bull>=0||lowTrig,sellTrig=bear>=0||upTrig;
+  const atr=avg(d.slice(-14).map((b,i,a)=>{const pc=i?a[i-1].close:b.open;return Math.max(b.high-b.low,Math.abs(b.high-pc),Math.abs(b.low-pc))}));
+  const S=lv.S[0],R=lv.R[0],nS=px-S<=atr*1.2,nR=R-px<=atr*1.2;
+  const tr=(px>v20?1:-1)+(v20>v50?1:-1)+(slope>0?1:-1),mo=r<30?2:r>70?-2:(r-50)/25,kl=nS&&!nR?1:nR&&!nS?-1:0;
+  const sc=tr+mo+kl+(lowB?1:upB?-1:0)+(bull>=0?2:bear>=0?-2:0);
+  // bias comes from the score; a BUY/SELL is only issued when a trigger has fired
+  const bias=sc>=4.5?2:sc>=1.5?1:sc<=-1.5?-1:0;let V='HOLD',dir=0;
+  if(bias>0&&buyTrig){V=bias>1?'STRONG BUY':'BUY';dir=1}else if(bias<0&&sellTrig){V='SELL';dir=-1}
+  const gated=bias!==0&&!dir;
+  const bd={'STRONG BUY':'background:#00ff85;color:#04120a','BUY':'background:#00ff8522;color:#00ff85;box-shadow:inset 0 0 0 1.5px #00ff85','HOLD':'background:#27272a;color:#d4d4d8','SELL':'background:#ff2d55;color:#fff'}[V];
+  const W3=['Bearish','Neutral','Bullish'],sg=[['Trend',tr>1?1:tr<-1?-1:0],['Momentum',mo>.5?1:mo<-.5?-1:0],
+    ['Band touch',lowB?1:upB?-1:0,lowB?'Lower band':upB?'Upper band':'None'],['9/21 cross',bull>=0?1:bear>=0?-1:0,bull>=0?'Bullish':bear>=0?'Bearish':'None'],
+    ['Key levels',kl],['Trigger',dir,dir>0?'Buy armed':dir<0?'Sell armed':'Waiting']];
+  const when=n=>n===0?'on the latest bar':n+' bar'+(n>1?'s':'')+' ago';
+  let b1;
+  if(dir>0)b1=cap([bull>=0&&`the 9 EMA crossed above the 21 SMA ${when(bull)}`,lowTrig&&`price touched the lower Bollinger band with RSI at ${r.toFixed(0)}`].filter(Boolean).join(' and '))+'.';
+  else if(dir<0)b1=cap([bear>=0&&`the 9 EMA crossed below the 21 SMA ${when(bear)}`,upTrig&&`price touched the upper Bollinger band with RSI at ${r.toFixed(0)}`].filter(Boolean).join(' and '))+'.';
+  else if(gated)b1=`Bias is ${bias>0?'bullish':'bearish'}, but no trigger has fired: there is no fresh 9 EMA/21 SMA cross and no qualifying Bollinger band touch.`;
+  else b1=`Signals conflict: RSI is ${r.toFixed(0)}, the 9 EMA is ${e9[N-1].value>m21[N-1].value?'above':'below'} the 21 SMA and price is inside the bands.`;
+  const trT=tr===3?'price sits above a rising 20/50 SMA stack':tr===-3?'price sits below a falling 20/50 SMA stack':tr>0?'the trend leans up but the averages are not fully aligned':'the trend leans down but the averages are not fully aligned';
+  const tail={'STRONG BUY':'most signals line up to the upside','BUY':'the balance of signals favours buying','SELL':'the balance of signals favours sellers','HOLD':gated?'so the engine is waiting for confirmation before signalling':'waiting is the cleaner option'}[V];
+  let TP,SL,rr;
+  if(dir){const risk=Math.min(3*atr,Math.max(atr,dir>0?px-(S-.25*atr):(R+.25*atr)-px)),tgt=dir>0?R:S;
+    SL=px-dir*risk;TP=Math.abs(tgt-px)>=1.5*risk?tgt:px+dir*2*risk;rr=Math.abs(TP-px)/risk}
+  const row=(k,v,c='')=>`<div class="flex justify-between py-2"><dt class="text-zinc-400">${k}</dt><dd class="font-medium ${c}">${v}</dd></div>`;
+  const setup=dir?row(dir>0?'Entry (buy)':'Entry (sell)',fmt(px))+row('Take profit',fmt(TP),'up')+row('Stop loss',fmt(SL),'down')+row('Risk / reward','1 : '+rr.toFixed(1))
+    :`<p class="py-2 text-zinc-400">${gated?(bias>0?'Wait for the 9 EMA to cross above the 21 SMA, or a lower-band touch with RSI under 45.':'Wait for the 9 EMA to cross below the 21 SMA, or an upper-band touch with RSI over 55.'):`No clear edge. Wait for a break above ${fmt(R)} or below ${fmt(S)}.`}</p>`;
+  $('ai').innerHTML=`<h2 class="text-sm text-zinc-400">AI market analyst</h2>
+   <div class="mt-2 flex items-center gap-3"><span class="rounded-lg px-4 py-2 text-xl font-bold tracking-tight" style="${bd}">${V}</span>
+   <div class="text-xs text-zinc-400 leading-tight">Signal score<br><span class="text-sm font-medium text-zinc-200">${sc>0?'+':''}${sc.toFixed(1)} of 9</span></div></div>
+   <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">${sg.map(([n,v,t])=>`<div class="flex justify-between"><span class="text-zinc-400">${n}</span><span class="font-medium ${v>0?'up':v<0?'down':'text-zinc-300'}">${t||W3[v+1]}</span></div>`).join('')}</div>
+   <ul class="mt-3 space-y-2 text-sm text-zinc-300 leading-relaxed list-disc pl-4"><li>${b1}</li><li>${cap(trT)}, ${tail}.</li></ul>
+   <h3 class="mt-4 text-sm text-zinc-400">Trade setup</h3><dl class="divide-y divide-zinc-800 text-sm">${setup}</dl>
+   <p class="mt-2 text-xs text-zinc-500">Rule-based read of the chart data. Not financial advice.</p>`}
+
+/* ---------- render ---------- */
+function paint(keep){
+  const P=PAIRS[state.pair],pf={type:'price',precision:P.d,minMove:1/10**P.d};
+  const first=data[0],last=data[data.length-1],chg=(last.close/first.open-1)*100,upT=chg>=0,col=upT?'#00ff85':'#ff2d55';
+  const s2=smaOf(data,20),s5=smaOf(data,50),bb=bollinger(data),rs=rsiOf(data);
+  const m=a=>new Map(a.filter(x=>x.value!=null).map(x=>[x.time,x.value]));
+  ind={m20:m(s2),m50:m(s5)};closeMap=new Map(data.map(b=>[b.time,b.close]));rsiMap=m(rs);
+  [candle,area,s20,s50,bbU,bbM,bbL].forEach(s=>s.applyOptions({priceFormat:pf}));
+  candle.setData(data);
+  area.setData(data.map(b=>({time:b.time,value:b.close})));
+  area.applyOptions({lineColor:col,topColor:col+'40',bottomColor:col+'00'});
+  s20.setData(s2);s50.setData(s5);bbU.setData(bb.u);bbM.setData(bb.m);bbL.setData(bb.l);rsiS.setData(rs);
+  const I=state.ind;
+  candle.applyOptions({visible:state.type==='candle'});area.applyOptions({visible:state.type==='line'});
+  s20.applyOptions({visible:!!I.sma20});s50.applyOptions({visible:!!I.sma50});
+  [bbU,bbM,bbL].forEach(s=>s.applyOptions({visible:!!I.bb}));
+  $('rsiWrap').classList.toggle('hidden',!I.rsi);
+  const intraday=TFS[state.tf][0]<86400;
+  mainC.applyOptions({timeScale:{timeVisible:intraday,secondsVisible:false}});
+  if(!keep)requestAnimationFrame(()=>{mainC.timeScale().fitContent();const r=mainC.timeScale().getVisibleLogicalRange();if(r)rsiC.timeScale().setVisibleLogicalRange(r)});
+  setLegend(last,last.time);
+  // header
+  $('pairName').textContent=state.pair;$('price').textContent=fmt(last.close);
+  const el=$('chg');el.className='text-sm font-medium '+(upT?'up':'down');
+  el.textContent=`${upT?'+':''}${(last.close-first.open).toFixed(P.d)} (${upT?'+':''}${chg.toFixed(2)}%) · ${TFS[state.tf][2]}`;
+  lv=sr(data);drawSR();insights(data,s2,s5,bb,rs,chg);runAIEngine(data,s2,s5,bb,rs);
+  drawControls();
+}
+
+function insights(d,s2,s5,bb,rs,chg){
+  const last=d[d.length-1],v20=s2.at(-1).value,v50=s5.at(-1).value,slope=s5.at(-1).value-s5.at(-11).value;
+  const bw=bb.u.map((x,i)=>x.value!=null?(x.value-bb.l[i].value)/bb.m[i].value:null).filter(x=>x!=null);
+  const pct=bw.filter(x=>x<=bw.at(-1)).length/bw.length;
+  const bull=last.close>v50&&v20>v50&&slope>0,bear=last.close<v50&&v20<v50&&slope<0;
+  const dir=bull?'Bullish':bear?'Bearish':'Neutral',st=pct<.35?'consolidation':'trend';
+  const label=dir==='Neutral'?'Range-bound':`${dir} ${st}`;
+  const r=rs.at(-1).value,rr=r>70?'Overbought':r<30?'Oversold':r>55?'Leaning strong':r<45?'Leaning weak':'Balanced';
+  const w=d.slice(-30),hi=Math.max(...w.map(b=>b.high)),lo=Math.min(...w.map(b=>b.low));
+  const atr=avg(d.slice(-14).map(b=>(b.high-b.low)/b.close*100));
+  $('trend').innerHTML=`<span class="${bull?'up':bear?'down':''}">${label}</span>`;
+  $('summary').textContent=`Price is ${last.close>v50?'above':'below'} its 50-period average and the 20-period average is ${v20>v50?'above':'below'} it. Bollinger band width is in the ${Math.round(pct*100)}th percentile of this window, so volatility is ${pct<.35?'compressed':pct>.7?'expanded':'moderate'}.`;
+  const row=(k,v,c='')=>`<div class="flex justify-between py-2"><dt class="text-zinc-400">${k}</dt><dd class="font-medium ${c}">${v}</dd></div>`;
+  $('stats').innerHTML=row(TFS[state.tf][2]+' change',`${chg>=0?'+':''}${chg.toFixed(2)}%`,chg>=0?'up':'down')
+    +row('RSI (14)',`${r.toFixed(1)} · ${rr}`,r>70?'down':r<30?'up':'')
+    +row('Nearest support',fmt(lv.S[0]))+row('Nearest resistance',fmt(lv.R[0]))
+    +row('Range high',fmt(Math.max(...d.map(b=>b.high))))+row('Range low',fmt(Math.min(...d.map(b=>b.low))))
+    +row('Average bar range',atr.toFixed(2)+'%');
+}
+
+/* ---------- controls ---------- */
+function drawControls(){
+  $('pairSel').value=state.pair;
+  $('tfs').innerHTML=Object.keys(TFS).map(t=>`<button class="chip ${t===state.tf?'on':''}" data-tf="${t}">${t}</button>`).join('');
+  $('tools').innerHTML=TOOLS.map(t=>{
+    if(t==='|')return'<span class="w-px bg-zinc-800 mx-1 shrink-0"></span>';
+    const [k,n,c]=t,isType=k==='candle'||k==='line',on=isType?state.type===k:state.ind[k];
+    return isType?`<button class="chip ${on?'on':''}" data-type="${k}">${n}</button>`
+      :`<button class="chip pill ${on?'on':''}" style="--c:${c}" data-ind="${k}" aria-pressed="${!!on}"><i></i>${n}</button>`}).join('');
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+  if(d.pair)state.pair=d.pair;else if(d.tf)state.tf=d.tf;else if(d.type)state.type=d.type;else if(d.ind)state.ind[d.ind]^=1;else return;
+  load();
+});
+$('pairSel').innerHTML=Object.keys(PAIRS).map(p=>`<option value="${p}">${p}</option>`).join('');
+$('pairSel').addEventListener('change',e=>{state.pair=e.target.value;load()});
+try{$('key').value=localStorage.getItem('avkey')||''}catch(e){}
+$('key').addEventListener('change',()=>{try{localStorage.setItem('avkey',$('key').value.trim())}catch(e){}cache.clear();load()});
+load();setInterval(()=>load(true),30000);
+</script>
+</body></html>
