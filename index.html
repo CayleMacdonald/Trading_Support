@@ -87,7 +87,7 @@ html.mobile #price{font-size:1.9rem}
 const $=id=>document.getElementById(id);
 if(!window.LightweightCharts){document.body.insertAdjacentHTML('afterbegin','<p style="padding:1rem;color:#ff2d55">The charting library failed to load. Check your connection and reload.</p>');throw new Error('lightweight-charts missing')}
 const PAIRS={'EUR/USD':{base:1.0862,d:5,vol:.005,seed:11},'USD/JPY':{base:149.35,d:3,vol:.006,seed:23},'GBP/USD':{base:1.2946,d:5,vol:.0055,seed:37},'XAU/USD':{base:2648.4,d:2,vol:.01,seed:51}};
-const TFS={'1D':[900,96,'1 day'],'1W':[3600,168,'1 week'],'1M':[14400,180,'1 month'],'3M':[86400,90,'3 months'],'1Y':[86400,365,'1 year']};
+const TFS={'5min':[300,144,'12 hours'],'1H':[3600,120,'5 days'],'5H':[18000,120,'25 days'],'1D':[900,96,'1 day'],'1W':[3600,168,'1 week'],'1M':[14400,180,'1 month'],'3M':[86400,90,'3 months'],'1Y':[86400,365,'1 year']};
 const state={pair:'EUR/USD',tf:'1M',type:'candle',ind:{sma20:1,sma50:1,bb:0,sr:1,rsi:1}};
 const TOOLS=[['candle','Candles'],['line','Line'],'|',['sma20','SMA 20','#facc15'],['sma50','SMA 50','#38bdf8'],['bb','Bollinger bands','#c084fc'],['sr','Support & resistance','#94a3b8'],['rsi','RSI','#fb923c']];
 
@@ -157,34 +157,36 @@ rsiC.subscribeCrosshairMove(p=>{
 
 /* ---------- live data ---------- */
 const BIN={'EUR/USD':'EURUSDT','GBP/USD':'GBPUSDT','XAU/USD':'PAXGUSDT'};
-const BI={'1D':'15m','1W':'1h','1M':'4h','3M':'1d','1Y':'1d'};
-const AVI={'1D':'15min','1W':'60min'},AVN={'1D':96,'1W':168,'1M':60,'3M':90,'1Y':365};
+const BI={'5min':'5m','1H':'1h','5H':'1h','1D':'15m','1W':'1h','1M':'4h','3M':'1d','1Y':'1d'};
+const AVI={'5min':'5min','1H':'60min','5H':'60min','1D':'15min','1W':'60min'},AVN={'5min':144,'1H':120,'5H':120,'1D':96,'1W':168,'1M':60,'3M':90,'1Y':365};
 const cache=new Map();let seq=0;
+let lastRaw=null,rawH=null;
+const agg=(b,s)=>{const m=new Map();b.forEach(x=>{const t=Math.floor(x.time/s)*s,c=m.get(t);c?(c.high=Math.max(c.high,x.high),c.low=Math.min(c.low,x.low),c.close=x.close):m.set(t,{time:t,open:x.open,high:x.high,low:x.low,close:x.close})});return[...m.values()].sort((a,b)=>a.time-b.time)};
 async function getJSON(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
 async function binance(pair,tf){
-  const q=`/api/v3/klines?symbol=${BIN[pair]}&interval=${BI[tf]}&limit=${TFS[tf][1]}`;let j;
+  const q=`/api/v3/klines?symbol=${BIN[pair]}&interval=${BI[tf]}&limit=${tf==='5H'?TFS[tf][1]*5+4:TFS[tf][1]}`;let j;
   try{j=await getJSON('https://data-api.binance.vision'+q)}catch(e){j=await getJSON('https://api.binance.com'+q)}
-  return j.map(k=>({time:Math.floor(k[0]/1000),open:+k[1],high:+k[2],low:+k[3],close:+k[4]}));
+  const hb=j.map(k=>({time:Math.floor(k[0]/1000),open:+k[1],high:+k[2],low:+k[3],close:+k[4]}));lastRaw=tf==='5H'?hb:null;return tf==='5H'?agg(hb,18000).slice(-TFS[tf][1]):hb;
 }
 async function alpha(pair,tf,key){
   const [f,t]=pair.split('/'),iv=AVI[tf];
   const j=await getJSON(`https://www.alphavantage.co/query?function=${iv?'FX_INTRADAY':'FX_DAILY'}&from_symbol=${f}&to_symbol=${t}${iv?'&interval='+iv:''}&outputsize=full&apikey=${encodeURIComponent(key)}`);
   const k=Object.keys(j).find(x=>x.startsWith('Time Series'));
   if(!k)throw new Error(j.Note||j.Information||j['Error Message']||'No data returned');
-  return Object.entries(j[k]).map(([d,v])=>({time:Date.parse(d.replace(' ','T')+'Z')/1000,open:+v['1. open'],high:+v['2. high'],low:+v['3. low'],close:+v['4. close']})).sort((a,b)=>a.time-b.time).slice(-AVN[tf]);
+  const ab=Object.entries(j[k]).map(([d,v])=>({time:Date.parse(d.replace(' ','T')+'Z')/1000,open:+v['1. open'],high:+v['2. high'],low:+v['3. low'],close:+v['4. close']})).sort((a,b)=>a.time-b.time);return (tf==='5H'?agg(ab,18000):ab).slice(-AVN[tf]);
 }
 async function fetchBars(pair,tf){
   const key=$('key').value.trim(),bin=!!BIN[pair],id=[pair,tf,bin].join('|'),c=cache.get(id);
   if(c&&Date.now()-c.t<(bin?15000:300000))return c;
   if(!bin&&!key)throw new Error(pair+' needs a free Alpha Vantage key. Paste it above.');
   const bars=bin?await binance(pair,tf):await alpha(pair,tf,key);
-  if(bars.length<50)throw new Error('Not enough bars returned');
-  const r={bars,src:bin?'Binance':'Alpha Vantage',t:Date.now()};cache.set(id,r);return r;
+  if(bars.length<60)throw new Error('Not enough bars returned');
+  const r={bars,src:bin?'Binance':'Alpha Vantage',t:Date.now(),raw:bin?lastRaw:null};cache.set(id,r);return r;
 }
 async function load(keep){
   const my=++seq,st=$('status');
   try{const r=await fetchBars(state.pair,state.tf);if(my!==seq)return;
-    data=r.bars;st.style.color='var(--up)';const bn=r.src==='Binance';st.textContent=(bn?'Live · ':'Delayed · ')+r.src+' · '+new Date(r.t).toLocaleTimeString()+(bn?'':' · press Refresh for the latest');sync(bn);if(bn&&ws&&ws.readyState===1)live('● Streaming · Binance · real time','var(--up)')}
+    data=r.bars;rawH=r.raw?Object.fromEntries(r.raw.map(h=>[h.time,h])):null;st.style.color='var(--up)';const bn=r.src==='Binance';st.textContent=(bn?'Live · ':'Delayed · ')+r.src+' · '+new Date(r.t).toLocaleTimeString()+(bn?'':' · press Refresh for the latest');sync(bn);if(bn&&ws&&ws.readyState===1)live('● Streaming · Binance · real time','var(--up)')}
   catch(e){if(my!==seq)return;data=gen(state.pair,state.tf);keep=false;unsub();
     st.textContent='Showing simulated data · '+e.message;st.style.color='var(--down)'}
   paint(keep);
@@ -264,7 +266,10 @@ function sync(on){if(!on){unsub();return}const k=state.pair+'|'+state.tf;if(k===
 function wsOpen(k){
   const w=new WebSocket(`${WSH[hi%2]}/ws/${BIN[state.pair].toLowerCase()}@kline_${BI[state.tf]}`);ws=w;
   w.onopen=()=>live('● Streaming · Binance · real time','var(--up)');
-  w.onmessage=e=>{const x=JSON.parse(e.data).k;if(x)applyBar({time:Math.floor(x.t/1000),open:+x.o,high:+x.h,low:+x.l,close:+x.c})};
+  w.onmessage=e=>{const x=JSON.parse(e.data).k;if(!x)return;let b={time:Math.floor(x.t/1000),open:+x.o,high:+x.h,low:+x.l,close:+x.c};
+    if(state.tf==='5H'){if(!rawH)return;rawH[b.time]=b;const bk=Math.floor(b.time/18000)*18000,hs=Object.values(rawH).filter(h=>Math.floor(h.time/18000)*18000===bk).sort((p,q)=>p.time-q.time);
+      b={time:bk,open:hs[0].open,high:Math.max(...hs.map(h=>h.high)),low:Math.min(...hs.map(h=>h.low)),close:hs[hs.length-1].close}}
+    applyBar(b)};
   w.onclose=()=>{if(subKey!==k)return;hi++;live('Stream dropped, reconnecting… (Refresh loads the latest bars)','var(--down)');setTimeout(()=>{if(subKey===k)wsOpen(k)},2500)}}
 function applyBar(b){
   const L=data[data.length-1];if(!L||b.time<L.time)return;
